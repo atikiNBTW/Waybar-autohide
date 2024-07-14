@@ -3,6 +3,7 @@
 #include <gtk-layer-shell.h>
 #include <spdlog/spdlog.h>
 
+#include <string>
 #include <type_traits>
 
 #include "client.hpp"
@@ -133,6 +134,7 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
     : output(w_output),
       config(w_config),
       window{Gtk::WindowType::WINDOW_TOPLEVEL},
+      hotspotWindow{Gtk::WindowType::WINDOW_TOPLEVEL},
       x_global(0),
       y_global(0),
       margins_{.top = 0, .right = 0, .bottom = 0, .left = 0},
@@ -146,10 +148,16 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
   window.get_style_context()->add_class(output->name);
   window.get_style_context()->add_class(config["name"].asString());
 
+  hotspotWindow.set_opacity(0);
+  hotspotWindow.set_title("waybar-autohide");
+  hotspotWindow.set_name("waybar-autohide");
+  hotspotWindow.set_decorated(false);
+
   from_json(config["position"], position);
   orientation = (position == Gtk::POS_LEFT || position == Gtk::POS_RIGHT)
                     ? Gtk::ORIENTATION_VERTICAL
                     : Gtk::ORIENTATION_HORIZONTAL;
+
 
   window.get_style_context()->add_class(to_string(position));
 
@@ -217,9 +225,13 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
     margins_ = {.top = gaps, .right = gaps, .bottom = gaps, .left = gaps};
   }
 
+  auto autohide_enabled = config["autohide"].isBool() ? config["autohide"].asBool() : false;
+  auto autohide_starthidden = autohide_enabled && (config["autohide-starthidden"].isBool() ? config["autohide-starthidden"].asBool() : false);
+
   window.signal_configure_event().connect_notify(sigc::mem_fun(*this, &Bar::onConfigure));
-  output->monitor->property_geometry().signal_changed().connect(
-      sigc::mem_fun(*this, &Bar::onOutputGeometryChanged));
+  output->monitor->property_geometry().signal_changed().connect(sigc::mem_fun(*this, &Bar::onOutputGeometryChanged));
+
+  hotspotWindow.signal_configure_event().connect_notify(sigc::mem_fun(*this, &Bar::resizeHotspotWindow));
 
   // this has to be executed before GtkWindow.realize
   auto* gtk_window = window.gobj();
@@ -233,7 +245,13 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
   gtk_layer_set_margin(gtk_window, GTK_LAYER_SHELL_EDGE_TOP, margins_.top);
   gtk_layer_set_margin(gtk_window, GTK_LAYER_SHELL_EDGE_BOTTOM, margins_.bottom);
 
+  auto* gtk_hotspotWindow = hotspotWindow.gobj();
+  gtk_layer_init_for_window(gtk_hotspotWindow);
+  gtk_layer_set_monitor(gtk_hotspotWindow, output->monitor->gobj());
+  gtk_layer_set_namespace(gtk_hotspotWindow, "waybarautohide");
+
   window.set_size_request(width_, height_);
+  hotspotWindow.set_size_request(width_, height_);
 
   // Position needs to be set after calculating the height due to the
   // GTK layer shell anchors logic relying on the dimensions of the bar.
@@ -277,7 +295,17 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
 #endif
 
   setupWidgets();
-  window.show_all();
+  if (autohide_enabled) {
+    setupAutohide();
+  }
+
+  if (autohide_starthidden) {
+    window.hide();
+    hotspotWindow.show_all();
+  } else {
+    hotspotWindow.hide();
+    window.show_all();
+  }
 
   if (spdlog::should_log(spdlog::level::debug)) {
     // Unfortunately, this function isn't in the C++ bindings, so we have to call the C version.
@@ -390,6 +418,7 @@ void waybar::Bar::setPosition(Gtk::PositionType position) {
   for (auto edge : {GTK_LAYER_SHELL_EDGE_LEFT, GTK_LAYER_SHELL_EDGE_RIGHT, GTK_LAYER_SHELL_EDGE_TOP,
                     GTK_LAYER_SHELL_EDGE_BOTTOM}) {
     gtk_layer_set_anchor(window.gobj(), edge, anchors[edge]);
+    gtk_layer_set_anchor(hotspotWindow.gobj(), edge, anchors[edge]);
   }
 }
 
@@ -413,6 +442,58 @@ void waybar::Bar::setVisible(bool visible) {
 }
 
 void waybar::Bar::toggle() { setVisible(!visible); }
+
+void waybar::Bar::showMainbar(GdkEventCrossing* ev) {
+  this->autohide_connection.disconnect();
+
+  if (!this->window.is_visible()) {
+    this->window.show_all();
+  } else {
+    spdlog::warn("Main window already visible");
+  }
+
+  if (this->hotspotWindow.is_visible()) {
+    this->hotspotWindow.hide();
+  } else {
+    spdlog::warn("Auto-hide window already hidden");
+  }
+}
+
+bool waybar::Bar::hideMainbarCallback() {  
+  if (!this->hotspotWindow.is_visible()) {
+    this->hotspotWindow.show_all();
+  } else {
+    spdlog::warn("Auto-hide window already visible");
+  }
+
+  if (this->window.is_visible()) {
+    this->window.hide();
+  } else {
+    spdlog::warn("Main window already hidden");
+  }
+
+  return false;
+}
+
+void waybar::Bar::hideMainbar(GdkEventCrossing* ev) {
+  this->autohide_connection.disconnect();
+  this->autohide_connection = Glib::signal_timeout().connect(sigc::mem_fun(*this, &Bar::hideMainbarCallback), this->autohide_delay_ms);
+}
+
+void waybar::Bar::setupAutohide() {
+  this->autohide_connection.disconnect();
+  this->autohide_delay_ms = config["autohide-delay"].isUInt() ? config["autohide-delay"].asUInt() : 0;
+
+  auto* gtk_window = window.gobj();
+  gtk_layer_set_layer(gtk_window, GTK_LAYER_SHELL_LAYER_OVERLAY);
+
+  hotspotWindow.signal_enter_notify_event().connect_notify(sigc::mem_fun(*this, &waybar::Bar::showMainbar));
+  window.signal_leave_notify_event().connect_notify(sigc::mem_fun(*this, &waybar::Bar::hideMainbar));
+}
+
+void waybar::Bar::resizeHotspotWindow(GdkEventConfigure *ev) {
+  hotspotWindow.set_size_request(ev->width, 3);
+}
 
 // Converting string to button code rn as to avoid doing it later
 void waybar::Bar::setupAltFormatKeyForModule(const std::string& module_name) {

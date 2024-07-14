@@ -69,12 +69,14 @@ class Bar {
   void setVisible(bool visible);
   void toggle();
   void handleSignal(int);
+  void setupAutohide();
 
   struct waybar_output *output;
   Json::Value config;
   struct wl_surface *surface;
   bool visible = true;
   Gtk::Window window;
+  Gtk::Window hotspotWindow;
   Gtk::Orientation orientation = Gtk::ORIENTATION_HORIZONTAL;
   Gtk::PositionType position = Gtk::POS_TOP;
 
@@ -97,6 +99,10 @@ class Bar {
   void onConfigure(GdkEventConfigure *ev);
   void configureGlobalOffset(int width, int height);
   void onOutputGeometryChanged();
+  void showMainbar(GdkEventCrossing* ev);
+  void hideMainbar(GdkEventCrossing* ev);
+  void resizeHotspotWindow(GdkEventConfigure *ev);
+  bool hideMainbarCallback();
 
   /* Copy initial set of modes to allow customization */
   bar_mode_map configured_modes = PRESET_MODES;
@@ -118,6 +124,9 @@ class Bar {
   std::unique_ptr<BarIpcClient> _ipc_client;
 #endif
   std::vector<std::shared_ptr<waybar::AModule>> modules_all_;
+
+  unsigned int autohide_delay_ms = 0;
+  sigc::connection autohide_connection;
 };
 
 }  // namespace waybar
