@@ -3,6 +3,7 @@
 #include <fmt/format.h>
 
 #include <util/command.hpp>
+#include "bar.hpp"
 
 namespace waybar {
 
@@ -30,6 +31,11 @@ AModule::AModule(const Json::Value& config, const std::string& name, const std::
 
   event_box_.signal_enter_notify_event().connect(sigc::mem_fun(*this, &AModule::handleMouseEnter));
   event_box_.signal_leave_notify_event().connect(sigc::mem_fun(*this, &AModule::handleMouseLeave));
+
+  if (isTooltip) {
+    event_box_.signal_enter_notify_event().connect_notify(sigc::mem_fun(this->bar, &Bar::handleTooltipEnter));
+    event_box_.signal_leave_notify_event().connect_notify(sigc::mem_fun(this->bar, &Bar::handleTooltipLeave));
+  }
 
   // configure events' user commands
   // hasUserEvents is true if any element from eventMap_ is satisfying the condition in the lambda

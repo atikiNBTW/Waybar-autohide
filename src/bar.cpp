@@ -460,6 +460,10 @@ void waybar::Bar::showMainbar(GdkEventCrossing* ev) {
 }
 
 bool waybar::Bar::hideMainbarCallback() {  
+  if (this->tooltipHovered) {
+    return false;
+  }
+
   if (!this->hotspotWindow.is_visible()) {
     this->hotspotWindow.show_all();
   } else {
@@ -489,6 +493,16 @@ void waybar::Bar::setupAutohide() {
 
   hotspotWindow.signal_enter_notify_event().connect_notify(sigc::mem_fun(*this, &waybar::Bar::showMainbar));
   window.signal_leave_notify_event().connect_notify(sigc::mem_fun(*this, &waybar::Bar::hideMainbar));
+}
+
+void waybar::Bar::handleTooltipEnter(GdkEventCrossing* ev) {
+  spdlog::info("tooltip hovered;");
+  this->tooltipHovered = true;
+}
+
+void waybar::Bar::handleTooltipLeave(GdkEventCrossing* ev) {
+  spdlog::info("tooltip unhovered");
+  this->tooltipHovered = false;
 }
 
 void waybar::Bar::resizeHotspotWindow(GdkEventConfigure *ev) {

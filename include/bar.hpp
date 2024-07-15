@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "AModule.hpp"
+#include "gdk/gdk.h"
 #include "group.hpp"
 #include "xdg-output-unstable-v1-client-protocol.h"
 
@@ -70,6 +71,8 @@ class Bar {
   void toggle();
   void handleSignal(int);
   void setupAutohide();
+  void handleTooltipEnter(GdkEventCrossing* ev);
+  void handleTooltipLeave(GdkEventCrossing* ev);
 
   struct waybar_output *output;
   Json::Value config;
@@ -125,6 +128,7 @@ class Bar {
 #endif
   std::vector<std::shared_ptr<waybar::AModule>> modules_all_;
 
+  bool tooltipHovered = false;
   unsigned int autohide_delay_ms = 0;
   sigc::connection autohide_connection;
 };
