@@ -118,6 +118,10 @@ bool AModule::handleMouseLeave(GdkEventCrossing* const& e) {
   return false;
 }
 
+void AModule::setBar(Bar* bar) {
+  this->bar = bar;
+}
+
 bool AModule::handleToggle(GdkEventButton* const& e) { return handleUserEvent(e); }
 
 bool AModule::handleRelease(GdkEventButton* const& e) { return handleUserEvent(e); }

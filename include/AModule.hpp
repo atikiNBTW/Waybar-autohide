@@ -9,6 +9,7 @@
 #include "IModule.hpp"
 
 namespace waybar {
+class Bar;
 
 class AModule : public IModule {
  public:
@@ -16,6 +17,7 @@ class AModule : public IModule {
 
   ~AModule() override;
   auto update() -> void override;
+  void setBar(waybar::Bar* bar);
   virtual auto refresh(int shouldRefresh) -> void{};
   operator Gtk::Widget &() override;
   auto doAction(const std::string &name) -> void override;
@@ -50,6 +52,7 @@ class AModule : public IModule {
  private:
   bool handleUserEvent(GdkEventButton *const &ev);
   const bool isTooltip;
+  waybar::Bar* bar;
   bool hasUserEvents_;
   std::vector<int> pid_;
   gdouble distance_scrolled_y_;

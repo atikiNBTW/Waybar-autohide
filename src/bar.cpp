@@ -590,9 +590,10 @@ void waybar::Bar::getModules(const Factory& factory, const std::string& pos,
             modules_right_.emplace_back(module_sp);
           }
         }
-        module->dp.connect([module, ref] {
+        module->dp.connect([module, ref, this] {
           try {
             module->update();
+            module->setBar(this);
           } catch (const std::exception& e) {
             spdlog::error("{}: {}", ref, e.what());
           }
