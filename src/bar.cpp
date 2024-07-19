@@ -225,13 +225,8 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
     margins_ = {.top = gaps, .right = gaps, .bottom = gaps, .left = gaps};
   }
 
-  auto autohide_enabled = config["autohide"].isBool() ? config["autohide"].asBool() : false;
-  auto autohide_starthidden = autohide_enabled && (config["autohide-starthidden"].isBool() ? config["autohide-starthidden"].asBool() : false);
-
   window.signal_configure_event().connect_notify(sigc::mem_fun(*this, &Bar::onConfigure));
   output->monitor->property_geometry().signal_changed().connect(sigc::mem_fun(*this, &Bar::onOutputGeometryChanged));
-
-  hotspotWindow.signal_configure_event().connect_notify(sigc::mem_fun(*this, &Bar::resizeHotspotWindow));
 
   // this has to be executed before GtkWindow.realize
   auto* gtk_window = window.gobj();
@@ -248,10 +243,10 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
   auto* gtk_hotspotWindow = hotspotWindow.gobj();
   gtk_layer_init_for_window(gtk_hotspotWindow);
   gtk_layer_set_monitor(gtk_hotspotWindow, output->monitor->gobj());
-  gtk_layer_set_namespace(gtk_hotspotWindow, "waybarautohide");
+  // gtk_layer_set_namespace(gtk_hotspotWindow, "waybarautohide");
 
   window.set_size_request(width_, height_);
-  hotspotWindow.set_size_request(width_, height_);
+  // hotspotWindow.set_size_request(width_, height_);
 
   // Position needs to be set after calculating the height due to the
   // GTK layer shell anchors logic relying on the dimensions of the bar.
@@ -293,6 +288,8 @@ waybar::Bar::Bar(struct waybar_output* w_output, const Json::Value& w_config)
     }
   }
 #endif
+  auto autohide_enabled = config["autohide"].isBool() ? config["autohide"].asBool() : false;
+  auto autohide_starthidden = autohide_enabled && (config["autohide-starthidden"].isBool() ? config["autohide-starthidden"].asBool() : false);
 
   setupWidgets();
   if (autohide_enabled) {
@@ -459,11 +456,7 @@ void waybar::Bar::showMainbar(GdkEventCrossing* ev) {
   }
 }
 
-bool waybar::Bar::hideMainbarCallback() {  
-  if (this->tooltipHovered) {
-    return false;
-  }
-
+bool waybar::Bar::hideMainbarCallback() {
   if (!this->hotspotWindow.is_visible()) {
     this->hotspotWindow.show_all();
   } else {
@@ -495,18 +488,8 @@ void waybar::Bar::setupAutohide() {
   window.signal_leave_notify_event().connect_notify(sigc::mem_fun(*this, &waybar::Bar::hideMainbar));
 }
 
-void waybar::Bar::handleTooltipEnter(GdkEventCrossing* ev) {
-  spdlog::info("tooltip hovered;");
-  this->tooltipHovered = true;
-}
-
-void waybar::Bar::handleTooltipLeave(GdkEventCrossing* ev) {
-  spdlog::info("tooltip unhovered");
-  this->tooltipHovered = false;
-}
-
-void waybar::Bar::resizeHotspotWindow(GdkEventConfigure *ev) {
-  hotspotWindow.set_size_request(ev->width, 3);
+void waybar::Bar::resizeHotspotWindow(gint width) {
+  hotspotWindow.set_size_request(width, 3);
 }
 
 // Converting string to button code rn as to avoid doing it later
@@ -604,10 +587,9 @@ void waybar::Bar::getModules(const Factory& factory, const std::string& pos,
             modules_right_.emplace_back(module_sp);
           }
         }
-        module->dp.connect([module, ref, this] {
+        module->dp.connect([module, ref] {
           try {
             module->update();
-            module->setBar(this);
           } catch (const std::exception& e) {
             spdlog::error("{}: {}", ref, e.what());
           }
@@ -671,6 +653,7 @@ void waybar::Bar::onConfigure(GdkEventConfigure* ev) {
   width_ = ev->width;
   height_ = ev->height;
 
+  resizeHotspotWindow(ev->width);
   configureGlobalOffset(ev->width, ev->height);
   spdlog::info(BAR_SIZE_MSG, ev->width, ev->height, output->name);
 }

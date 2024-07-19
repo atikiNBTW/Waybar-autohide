@@ -71,8 +71,6 @@ class Bar {
   void toggle();
   void handleSignal(int);
   void setupAutohide();
-  void handleTooltipEnter(GdkEventCrossing* ev);
-  void handleTooltipLeave(GdkEventCrossing* ev);
 
   struct waybar_output *output;
   Json::Value config;
@@ -104,7 +102,7 @@ class Bar {
   void onOutputGeometryChanged();
   void showMainbar(GdkEventCrossing* ev);
   void hideMainbar(GdkEventCrossing* ev);
-  void resizeHotspotWindow(GdkEventConfigure *ev);
+  void resizeHotspotWindow(gint width);
   bool hideMainbarCallback();
 
   /* Copy initial set of modes to allow customization */
@@ -128,7 +126,6 @@ class Bar {
 #endif
   std::vector<std::shared_ptr<waybar::AModule>> modules_all_;
 
-  bool tooltipHovered = false;
   unsigned int autohide_delay_ms = 0;
   sigc::connection autohide_connection;
 };
