@@ -55,7 +55,7 @@ class BarIpcClient;
 }
 #endif  // HAVE_SWAY
 
-class Bar {
+class Bar : public sigc::trackable {
  public:
   using bar_mode_map = std::map<std::string, struct bar_mode>;
   static const bar_mode_map PRESET_MODES;
