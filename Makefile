@@ -5,6 +5,8 @@ default: build
 build:
 	meson setup build
 	ninja -C build
+	sudo rm /usr/bin/waybar
+	sudo ln -s $(shell pwd)/build/waybar /usr/bin/waybar
 
 build-debug:
 	meson setup build --buildtype=debug
